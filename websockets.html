@@ -1,13 +1,14 @@
 <html>
 <div class="main">
     <h1>P2P websocket IM</h1>
-    <input id="ip" type="text" size="40" alt="Connect to IP" />
+    <input id="name" type="text" size="40" alt="Set Name"  placeholder="Name"/>
+    <input id="ip" type="text" size="40" alt="Connect to IP" placeholder="IP"/>
     <button onclick="connect()">Connect</button>
-    <input id="input" type="text" size="40" />
+    <input id="input" type="text" size="40" placeholder="Nachricht"/>
     <button onclick="send()">Send</button>
+    <h3 id="connectStatus" class="error">Not connected</h3>
     <div class="flex-container">
-        <pre id="recieved"></pre>
-        <pre id="sent"></pre>
+        <pre id="received"></pre>
     </div>
 </div>
 <style>
@@ -24,9 +25,14 @@
     p {
         font-size: 16px;
     }
+    .error {
+        color: red;
+    }
+    .success {
+        color: green;
+    }
     .flex-container {
         display: flex;
-        background-color: DodgerBlue;
     }
 
     .flex-container * {
@@ -36,30 +42,66 @@
     }
     .flex-container > pre {
         background-color: #f1f1f1;
+        border-radius: 5px;
         margin: 5px;
-        padding: 10px;
+        padding: 20px;
         font-size: 20px;
     }
 </style>
 <script>
-    var input = document.getElementById("input");
-    var ip = document.getElementById("ip")
-    var recieved = document.getElementById("recieved");
-    var sent = document.getElementById("sent");
-    var socket
+    const input = document.getElementById("input");
+    const ip = document.getElementById("ip");
+    const received = document.getElementById("received");
+    const name = document.getElementById("name");
+    const connectStatus = document.getElementById("connectStatus")
+    let contactName;
+    let socket;
 
 
+    function getInfo() {
+        const infoSocket = new WebSocket("ws://"+ip.value+":8080/info");
+        infoSocket.onmessage = function (e) {
+            const obj = JSON.parse(e.data);
+            setContactName(obj.Name)
+        }
+        infoSocket.onopen = function () {
+            infoSocket.send("{\"Type\":\"get\", \"Name\":\"\", \"IP\":\"\"}");
+        }
+    }
+
+    function setContactName(name) {
+        contactName = name
+    }
+
+    function setInfo() {
+        const infoSocket = new WebSocket("ws://127.0.0.1:8080/info");
+        infoSocket.onopen = function () {
+            infoSocket.send("{\"Type\":\"set\", \"Name\":\""+name.value+"\", \"IP\":\"\"}");
+        }
+    }
 
     function connect() {
+        getInfo();
         socket = new WebSocket("ws://"+ip.value+":8080/messages")
         socket.onopen = function () {
-            recieved.innerHTML += "Status: Connected\n";
+            connectStatus.classList.remove("error");
+            connectStatus.classList.add("success");
+            connectStatus.innerText="Connected"
+        };
+
+        socket.onclose = function () {
+            connectStatus.classList.remove("success");
+            connectStatus.classList.add("error");
+            connectStatus.innerText="Not Connected"
         };
 
         socket.onmessage = function (e) {
-            recieved.innerHTML += "\nServer: " + e.data + "\n";
-            sent.innerHTML += "\nSent: " + input.value + "\n";
+            received.innerHTML += "\n"+contactName+": " + e.data + "\n";
+            received.innerHTML += "\n"+name.value+": " + input.value + "\n";
+            input.value=""
         };
+        setInfo()
+
     }
 
     function send() {

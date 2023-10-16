@@ -1,42 +1,38 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"strings"
-
+	"encoding/json"
+	"fmt"
 	"github.com/gorilla/websocket"
+	"log"
+	"net"
+	"net/http"
 )
 
+type msgInfo struct {
+	Type string
+	Name string
+	IP   string
+}
+
 var upgrader = websocket.Upgrader{}
-var todoList []string
+var info msgInfo
 
-func getCmd(input string) string {
-	inputArr := strings.Split(input, " ")
-	return inputArr[0]
-}
-
-func getMessage(input string) string {
-	inputArr := strings.Split(input, " ")
-	var result string
-	for i := 1; i < len(inputArr); i++ {
-		result += inputArr[i]
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
 	}
-	return result
-}
+	defer conn.Close()
 
-func updateTodoList(input string) {
-	tmpList := todoList
-	todoList = []string{}
-	for _, val := range tmpList {
-		if val == input {
-			continue
-		}
-		todoList = append(todoList, val)
-	}
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }
 
 func main() {
+
+	info = msgInfo{Type: "give", Name: "", IP: GetOutboundIP().String()}
 
 	http.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
 		// Upgrade upgrades the HTTP server connection to the WebSocket protocol.
@@ -54,12 +50,55 @@ func main() {
 				log.Println("read failed:", err)
 				break
 			}
-			input := string(message)
-			cmd := getCmd(input)
+
 			output := ""
-			output += cmd
+			output += string(message)
 			message = []byte(output)
 			err = conn.WriteMessage(mt, message)
+			if err != nil {
+				log.Println("write failed:", err)
+				break
+			}
+		}
+	})
+
+	http.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Print("upgrade failed: ", err)
+			return
+		}
+		defer conn.Close()
+
+		for {
+			mt, message, err := conn.ReadMessage()
+			if err != nil {
+				log.Println("read failed:", err)
+				break
+			}
+			var cmd msgInfo
+			var output []byte
+			fmt.Println(string(message))
+			err = json.Unmarshal(message, &cmd)
+			if err != nil {
+				log.Println("failed to parse command:", err)
+				continue
+			}
+			if cmd.Type == "get" {
+				output, err = json.Marshal(&info)
+				if err != nil {
+					return
+				}
+				fmt.Println("get")
+				fmt.Println(string(output))
+			} else if cmd.Type == "set" {
+				info.Name = cmd.Name
+				fmt.Println(info.Name)
+				fmt.Println(info.IP)
+			} else {
+				continue
+			}
+			err = conn.WriteMessage(mt, output)
 			if err != nil {
 				log.Println("write failed:", err)
 				break
