@@ -1,0 +1,70 @@
+<html>
+<div class="main">
+    <h1>P2P websocket IM</h1>
+    <input id="ip" type="text" size="40" alt="Connect to IP" />
+    <button onclick="connect()">Connect</button>
+    <input id="input" type="text" size="40" />
+    <button onclick="send()">Send</button>
+    <div class="flex-container">
+        <pre id="recieved"></pre>
+        <pre id="sent"></pre>
+    </div>
+</div>
+<style>
+    html {
+        text-align: center;
+        font-size: 16px;
+    }
+    .main {
+        padding: 1rem;
+    }
+    #input {
+        font-size: 16px;
+    }
+    p {
+        font-size: 16px;
+    }
+    .flex-container {
+        display: flex;
+        background-color: DodgerBlue;
+    }
+
+    .flex-container * {
+        position: relative;
+        transform: translateX(-50%);
+        left: 50%;
+    }
+    .flex-container > pre {
+        background-color: #f1f1f1;
+        margin: 5px;
+        padding: 10px;
+        font-size: 20px;
+    }
+</style>
+<script>
+    var input = document.getElementById("input");
+    var ip = document.getElementById("ip")
+    var recieved = document.getElementById("recieved");
+    var sent = document.getElementById("sent");
+    var socket
+
+
+
+    function connect() {
+        socket = new WebSocket("ws://"+ip.value+":8080/messages")
+        socket.onopen = function () {
+            recieved.innerHTML += "Status: Connected\n";
+        };
+
+        socket.onmessage = function (e) {
+            recieved.innerHTML += "\nServer: " + e.data + "\n";
+            sent.innerHTML += "\nSent: " + input.value + "\n";
+        };
+    }
+
+    function send() {
+        socket.send(input.value);
+
+    }
+</script>
+</html>
