@@ -1,114 +1,51 @@
+// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 package main
 
 import (
-	"encoding/json"
+	"flag"
 	"fmt"
-	"github.com/gorilla/websocket"
 	"log"
-	"net"
 	"net/http"
+	"time"
 )
 
-type msgInfo struct {
-	Type string
-	Name string
-	IP   string
-}
+var addr = flag.String("addr", ":8080", "http service address")
+var name = flag.String("name", "", "username")
 
-var upgrader = websocket.Upgrader{}
-var info msgInfo
-
-func GetOutboundIP() net.IP {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		log.Fatal(err)
+func serveHome(w http.ResponseWriter, r *http.Request) {
+	log.Println(r.URL)
+	if r.URL.Path != "/" {
+		http.Error(w, "Not found", http.StatusNotFound)
+		return
 	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-
-	return localAddr.IP
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	http.ServeFile(w, r, "home.html")
 }
 
 func main() {
-
-	info = msgInfo{Type: "give", Name: "", IP: GetOutboundIP().String()}
-
-	http.HandleFunc("/messages", func(w http.ResponseWriter, r *http.Request) {
-		// Upgrade upgrades the HTTP server connection to the WebSocket protocol.
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Print("upgrade failed: ", err)
-			return
-		}
-		defer conn.Close()
-
-		// Continuosly read and write message
-		for {
-			mt, message, err := conn.ReadMessage()
-			if err != nil {
-				log.Println("read failed:", err)
-				break
-			}
-
-			output := ""
-			output += string(message)
-			message = []byte(output)
-			err = conn.WriteMessage(mt, message)
-			if err != nil {
-				log.Println("write failed:", err)
-				break
-			}
-		}
+	flag.Parse()
+	if *name == "" {
+		fmt.Println("Kein username gegeben")
+		return
+	}
+	hub := newHub()
+	go hub.run()
+	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
 	})
-
-	http.HandleFunc("/info", func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
-		if err != nil {
-			log.Print("upgrade failed: ", err)
-			return
-		}
-		defer conn.Close()
-
-		for {
-			mt, message, err := conn.ReadMessage()
-			if err != nil {
-				log.Println("read failed:", err)
-				break
-			}
-			var cmd msgInfo
-			var output []byte
-			fmt.Println(string(message))
-			err = json.Unmarshal(message, &cmd)
-			if err != nil {
-				log.Println("failed to parse command:", err)
-				continue
-			}
-			if cmd.Type == "get" {
-				output, err = json.Marshal(&info)
-				if err != nil {
-					return
-				}
-				fmt.Println("get")
-				fmt.Println(string(output))
-			} else if cmd.Type == "set" {
-				info.Name = cmd.Name
-				fmt.Println(info.Name)
-				fmt.Println(info.IP)
-			} else {
-				continue
-			}
-			err = conn.WriteMessage(mt, output)
-			if err != nil {
-				log.Println("write failed:", err)
-				break
-			}
-		}
-	})
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "websockets.html")
-	})
-
-	http.ListenAndServe(":8080", nil)
+	server := &http.Server{
+		Addr:              *addr,
+		ReadHeaderTimeout: 3 * time.Second,
+	}
+	err := server.ListenAndServe()
+	if err != nil {
+		log.Fatal("ListenAndServe: ", err)
+	}
 }
