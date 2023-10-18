@@ -5,15 +5,10 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
 )
-
-var addr = flag.String("addr", ":8080", "http service address")
-var name = flag.String("name", "", "username")
 
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
@@ -29,11 +24,6 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	flag.Parse()
-	if *name == "" {
-		fmt.Println("Kein username gegeben")
-		return
-	}
 	hub := newHub()
 	go hub.run()
 	http.HandleFunc("/", serveHome)
@@ -41,8 +31,8 @@ func main() {
 		serveWs(hub, w, r)
 	})
 	server := &http.Server{
-		Addr:              *addr,
 		ReadHeaderTimeout: 3 * time.Second,
+		Addr:              ":8080",
 	}
 	err := server.ListenAndServe()
 	if err != nil {
