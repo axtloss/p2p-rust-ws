@@ -53,14 +53,14 @@ body {
 </head>
 <body>
 <div id="log"></div>
-<form id="form">
-    <input type="submit" value="Send" />
+<div id="form">
+    <button id="send" onclick="send()">Send</button>
     <input type="text" id="msg" placeholder="Nachricht" size="64" autofocus />
-</form>
+</div>
 <div id="connectInput">
-<button id="connect" onclick="connect()">Connect</button>
-<input type="text" id="ip" placeholder="IP" size="30" autofocus/>
-<input type="text" id="name" placeholder="Username" size="30" autofocus/>
+    <button id="connect" onclick="connect()">Connect</button>
+    <input type="text" id="ip" placeholder="IP" size="30" autofocus/>
+    <input type="text" id="name" placeholder="Username" size="30" autofocus/>
 </div>
 </body>
 <script type="text/javascript">
@@ -69,7 +69,6 @@ body {
     var msg = document.getElementById("msg");
     var log = document.getElementById("log");
     var ip = document.getElementById("ip");
-    var name = document.getElementById("name")
 
     function appendLog(item) {
         var doScroll = log.scrollTop > log.scrollHeight - log.clientHeight - 1;
@@ -79,20 +78,21 @@ body {
         }
     }
 
-    document.getElementById("form").onsubmit = function () {
+    function send() {
         if (!conn) {
             return false;
         }
         if (!msg.value) {
             return false;
         }
-        conn.send(name.value+": "+msg.value);
+        conn.send(document.getElementById("name").value+": "+msg.value);
         msg.value = "";
         return false;
-    };
+    }
 
     if (window["WebSocket"]) {
         localConn = new WebSocket("ws://127.0.0.1:8080/ws");
+
         localConn.onclose = function (evt) {
             var item = document.createElement("div");
             item.innerHTML = "<b>Connection closed.</b>";
@@ -110,9 +110,14 @@ body {
 
     function connect() {
         if (window["WebSocket"]) {
+            if (conn) {
+                conn.close()
+            }
             conn = new WebSocket("ws://" + ip.value + ":8080/ws");
-            conn.onopen = function() {
-                console.log(":D")
+            conn.onopen = function (evt) {
+                var item = document.createElement("div");
+                item.innerHTML = "<b>Connection established with "+ip.value+".</b>";
+                appendLog(item);
             }
             conn.onclose = function (evt) {
                 var item = document.createElement("div");
